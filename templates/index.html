@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Fake Currency Detector</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;600;700&display=swap');
+    :root {
+      --bg:#0a0a0f; --surface:#111118; --border:#1e1e2e;
+      --accent:#7c3aed; --accent2:#06b6d4;
+      --genuine:#10b981; --fake:#ef4444;
+      --text:#e2e8f0; --muted:#64748b;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;
+         min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:40px 20px}
+    header{text-align:center;margin-bottom:48px}
+    .badge{display:inline-block;font-family:'Space Mono',monospace;font-size:11px;
+           letter-spacing:3px;text-transform:uppercase;color:var(--accent2);
+           border:1px solid var(--accent2);padding:4px 14px;border-radius:100px;margin-bottom:16px}
+    header h1{font-size:clamp(28px,5vw,46px);font-weight:700;
+              background:linear-gradient(135deg,#fff 0%,var(--accent2) 100%);
+              -webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.15}
+    header p{color:var(--muted);margin-top:10px;font-size:15px}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:20px;
+          padding:36px;width:100%;max-width:600px}
+    .upload-zone{border:2px dashed var(--border);border-radius:14px;padding:48px 20px;
+                 text-align:center;cursor:pointer;transition:all .25s ease;position:relative}
+    .upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);background:rgba(124,58,237,.06)}
+    .upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+    .upload-icon{font-size:48px;margin-bottom:14px}
+    .upload-zone h3{font-size:17px;font-weight:600;margin-bottom:6px}
+    .upload-zone p{font-size:13px;color:var(--muted)}
+    #preview-wrap{display:none;margin-top:20px;border-radius:12px;overflow:hidden;border:1px solid var(--border)}
+    #preview-wrap img{width:100%;max-height:240px;object-fit:cover;display:block}
+    .btn{display:block;width:100%;margin-top:20px;padding:14px;background:var(--accent);
+         color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;
+         cursor:pointer;font-family:'DM Sans',sans-serif;letter-spacing:.4px;
+         transition:opacity .2s,transform .15s}
+    .btn:hover{opacity:.85;transform:translateY(-1px)}
+    .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+    #result{display:none;margin-top:28px;padding:24px;border-radius:14px;
+            border:1px solid var(--border);animation:fadeIn .4s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    #result.genuine{border-color:var(--genuine);background:rgba(16,185,129,.07)}
+    #result.fake{border-color:var(--fake);background:rgba(239,68,68,.07)}
+    .result-header{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+    .result-icon{font-size:36px}
+    .result-label{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;letter-spacing:1px}
+    .result-label.genuine{color:var(--genuine)}
+    .result-label.fake{color:var(--fake)}
+    .conf-row{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:6px}
+    .bar-bg{background:var(--border);border-radius:100px;height:8px;overflow:hidden;margin-bottom:18px}
+    .bar-fill{height:100%;border-radius:100px;transition:width .8s cubic-bezier(.23,1,.32,1)}
+    .bar-fill.genuine{background:var(--genuine)}
+    .bar-fill.fake{background:var(--fake)}
+    .prob-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .prob-cell{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+    .prob-cell .cls-name{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;
+                         color:var(--muted);margin-bottom:4px;font-family:'Space Mono',monospace}
+    .prob-cell .cls-val{font-size:20px;font-weight:700}
+    .prob-cell.genuine .cls-val{color:var(--genuine)}
+    .prob-cell.fake .cls-val{color:var(--fake)}
+    .loader{display:none;text-align:center;padding:20px;color:var(--muted);font-size:14px}
+    .spinner{width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--accent);
+             border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 10px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .error-box{margin-top:16px;padding:14px 16px;background:rgba(239,68,68,.1);
+               border:1px solid rgba(239,68,68,.3);border-radius:10px;color:var(--fake);
+               font-size:14px;display:none}
+    footer{margin-top:48px;color:var(--muted);font-size:12px;text-align:center}
+    footer span{color:var(--accent2)}
+  </style>
+</head>
+<body>
+<header>
+  <div class="badge">ResNet50 · CNN · Deep Learning</div>
+  <h1>Fake Currency<br>Detector</h1>
+  <p>Upload a currency image to verify its authenticity using AI</p>
+</header>
+
+<div class="card">
+  <div class="upload-zone" id="dropZone">
+    <input type="file" id="fileInput" accept="image/*"/>
+    <div class="upload-icon">🪙</div>
+    <h3>Drop currency image here</h3>
+    <p>or click to browse · PNG, JPG, JPEG, BMP, WEBP</p>
+  </div>
+
+  <div id="preview-wrap"><img id="preview-img" src="" alt="Preview"/></div>
+  <div class="error-box" id="errorBox"></div>
+
+  <button class="btn" id="analyzeBtn" disabled onclick="analyze()">Analyze Currency</button>
+
+  <div class="loader" id="loader">
+    <div class="spinner"></div>
+    Analyzing with ResNet50…
+  </div>
+
+  <div id="result">
+    <div class="result-header">
+      <div class="result-icon" id="resultIcon"></div>
+      <div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:2px">VERDICT</div>
+        <div class="result-label" id="resultLabel"></div>
+      </div>
+    </div>
+    <div class="conf-row"><span>Confidence</span><span id="confText"></span></div>
+    <div class="bar-bg"><div class="bar-fill" id="confBar" style="width:0%"></div></div>
+    <div class="prob-grid" id="probGrid"></div>
+  </div>
+</div>
+
+<footer>Built with <span>ResNet50</span> · Flask · PyTorch &nbsp;|&nbsp; Fake Currency Detection</footer>
+
+<script>
+  const fileInput   = document.getElementById("fileInput");
+  const analyzeBtn  = document.getElementById("analyzeBtn");
+  const previewWrap = document.getElementById("preview-wrap");
+  const previewImg  = document.getElementById("preview-img");
+  const dropZone    = document.getElementById("dropZone");
+  const errorBox    = document.getElementById("errorBox");
+  let selectedFile  = null;
+
+  dropZone.addEventListener("dragover",  e=>{e.preventDefault();dropZone.classList.add("dragover")});
+  dropZone.addEventListener("dragleave", ()=>dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", e=>{e.preventDefault();dropZone.classList.remove("dragover");const f=e.dataTransfer.files[0];if(f)handleFile(f)});
+  fileInput.addEventListener("change", e=>{const f=e.target.files[0];if(f)handleFile(f)});
+
+  function handleFile(file){
+    selectedFile=file;
+    previewImg.src=URL.createObjectURL(file);
+    previewWrap.style.display="block";
+    analyzeBtn.disabled=false;
+    document.getElementById("result").style.display="none";
+    errorBox.style.display="none";
+  }
+
+  async function analyze(){
+    if(!selectedFile)return;
+    document.getElementById("result").style.display="none";
+    errorBox.style.display="none";
+    analyzeBtn.disabled=true;
+    document.getElementById("loader").style.display="block";
+    const fd=new FormData();
+    fd.append("file",selectedFile);
+    try{
+      const res=await fetch("/predict",{method:"POST",body:fd});
+      const data=await res.json();
+      document.getElementById("loader").style.display="none";
+      analyzeBtn.disabled=false;
+      if(data.error){errorBox.textContent="⚠ "+data.error;errorBox.style.display="block";return}
+      renderResult(data);
+    }catch(e){
+      document.getElementById("loader").style.display="none";
+      analyzeBtn.disabled=false;
+      errorBox.textContent="⚠ Server error. Is app.py running?";
+      errorBox.style.display="block";
+    }
+  }
+
+  function renderResult(data){
+    const cls=data.label.toLowerCase()==="genuine"?"genuine":"fake";
+    const el=document.getElementById("result");
+    el.className=cls; el.style.display="block";
+    document.getElementById("resultIcon").textContent=cls==="genuine"?"✅":"🚫";
+    const lbl=document.getElementById("resultLabel");
+    lbl.textContent=data.label.toUpperCase(); lbl.className="result-label "+cls;
+    document.getElementById("confText").textContent=data.confidence+"%";
+    const bar=document.getElementById("confBar");
+    bar.className="bar-fill "+cls;
+    setTimeout(()=>bar.style.width=data.confidence+"%",50);
+    const grid=document.getElementById("probGrid");
+    grid.innerHTML="";
+    for(const[name,prob] of Object.entries(data.all_probs)){
+      const c=name.toLowerCase()==="genuine"?"genuine":"fake";
+      grid.innerHTML+=`<div class="prob-cell ${c}"><div class="cls-name">${name}</div><div class="cls-val">${prob}%</div></div>`;
+    }
+  }
+</script>
+</body>
+</html>
